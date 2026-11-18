@@ -102,7 +102,7 @@ var SHINT={
   D:"D: the forward element applies, and the gearbox starts in 1st gear. Release the brake pedal and give gas.",
   M1:"Manual 1: the gearbox holds 1st gear. A brake also holds the part that the one-way clutch holds in D."
 };
-var S={sel:"P",gas:0,brake:false,engine:true,fault:"none",gb:"aw",awd:true,body:0,explode:false,k:0,kt:0,flow:true,part:"fwd",slow:false,push:0,t:0,vr:false,auto:false};
+var S={iso:false,sel:"P",gas:0,brake:false,engine:true,fault:"none",gb:"aw",awd:true,body:0,explode:false,k:0,kt:0,flow:true,part:"fwd",slow:false,push:0,t:0,vr:false,auto:false};
 function nm(v){return typeof v==="string"?v:v[S.gb]}
 function pName(id){return nm(PARTS[id].name)}
 
@@ -458,12 +458,14 @@ var pmg=new T.PMREMGenerator(renderer); scene.environment=pmg.fromScene(new T.Ro
 var camera=new T.PerspectiveCamera(36,1,0.05,50);
 var controls=new T.OrbitControls(camera,canvas);
 controls.enableDamping=true; controls.dampingFactor=0.08; controls.enablePan=false;
-controls.minDistance=0.9; controls.maxDistance=13; controls.maxPolarAngle=2.25;
+controls.minDistance=0.45; controls.maxDistance=13; controls.maxPolarAngle=2.25;
 controls.autoRotate=!reduce; controls.autoRotateSpeed=0.5;
 var FA=2.86, CRY=0.62, CRZ=2.98;
 function homeView(mode){
   var tg, dir, d;
   if(mode==="below"){tg=new V3(0,0.4,1.5); dir=new V3(1.2,-0.75,1.3); d=4.3}
+  else if(mode==="isoEx"){tg=new V3(0.62,0.86,2.93); dir=new V3(0.55,0.35,1.6); d=camera.aspect<1.25?3.0:2.3}
+  else if(mode==="iso"){tg=new V3(0.36,0.54,2.93); dir=new V3(1.15,0.7,1.25); d=camera.aspect<1.25?1.9:1.5}
   else if(mode==="box"){tg=new V3(0.38,0.56,2.92); dir=new V3(1.0,1.55,1.25); d=camera.aspect<1.25?2.4:2.0}
   else{tg=new V3(0.15,0.65,1.9); dir=new V3(2.3,1.1,2.4); d=camera.aspect<1.25?6.2:5.3}
   controls.target.copy(tg); camera.position.copy(tg).addScaledVector(dir.normalize(),d); controls.update();
@@ -774,7 +776,7 @@ var wheelParts=[WH.rL,WH.rR,WH.fL,WH.fR];
 
 function setBody(mode){
   if(remote("body",mode))return;
-  S.body=mode; shell.visible=mode<2;
+  S.body=mode; shell.visible=mode<2&&!S.iso;
   SHELLM.forEach(function(a){a[0].opacity=mode===0?a[2]:a[1]; a[0].depthWrite=mode===1});
   $("bBody").textContent=["X-ray","Paint","No body"][mode];
 }
@@ -782,9 +784,22 @@ function gbVis(){
   var aw=S.gb==="aw";
   eng5.visible=aw; eng6.visible=!aw;
   EL.c2.visible=aw; EL.c3.visible=aw; EL.p3.visible=aw; EL.b3.visible=aw; EL.rband.visible=!aw; EL.fband.visible=!aw;
-  awdParts.forEach(function(o){o.visible=S.awd});
+  awdParts.forEach(function(o){o.visible=S.awd&&(o===angleG||!S.iso)});
 }
 window.__gbVis=gbVis; gbVis();
+
+/* "Gearbox only": hide everything that is not the gearbox block */
+var KEEP=[pt,diffG,angleG], CTX=[];
+car.children.forEach(function(c){if(KEEP.indexOf(c)<0&&atfDots.indexOf(c)<0)CTX.push([c,c===shell?function(){return S.body<2}:awdParts.indexOf(c)>=0?function(){return S.awd}:function(){return true}])});
+wheelParts.forEach(function(w){[w.g,w.cal,w.hub].forEach(function(o){CTX.push([o,function(){return true}])})});
+pbrake.forEach(function(o){CTX.push([o,function(){return true}])});
+CTX.push([startLine,function(){return true}]); CTX.push([engine,function(){return true}]);
+function isoVis(){CTX.forEach(function(a){a[0].visible=!S.iso&&a[1]()})}
+function setIso(on){
+  if(remote("iso",on?1:0))return;
+  S.iso=on; $("bBox").setAttribute("aria-pressed",on?"true":"false"); isoVis();
+  if(!CO.on||CO.view!=="pilot"){controls.autoRotate=false; homeView(on?(S.explode?"isoEx":"iso"):undefined)}
+}
 
 /* ---------- pose: every frame ---------- */
 var VS=0.045, ANG={}, _c=new T.Color(), _v=new V3(), SELC=new T.Color(0x4f86ff), rockA=0;
@@ -844,7 +859,7 @@ function pose(dt){
   /* ATF: level and colour */
   var lvl=S.fault==="lowatf"?0.35:1; atfLevel.scale.y=lvl; atfLevel.position.y=-0.025+0.02*lvl;
   atfMat.color.setHex(S.fault==="coolant"?0xe8a0b8:PH.heat>60||S.fault==="fwd"?0x5a1a10:0xb5161e);
-  atfDots.forEach(function(dd,i){dd.visible=flow&&S.engine; if(!dd.visible)return;
+  atfDots.forEach(function(dd,i){dd.visible=flow&&S.engine&&!S.iso; if(!dd.visible)return;
     var c=coolerCurves[i%2], u=((i/12*2+S.t*(0.15+PH.we*RPM/9000))*(i%2?-1:1))%1; if(u<0)u+=1; c.getPoint(u,dd.position); dd.material.color.setHex(S.fault==="coolant"?0xf2b8cf:0xff4d5a)});
   var pulse=0.5+0.2*Math.sin(S.t*4);
   for(var j=0;j<REG.length;j++){
@@ -930,20 +945,20 @@ canvas.addEventListener("pointerup",function(e){
 function visibleMesh(o){var p=o; while(p){if(!p.visible)return false; p=p.parent} return true}
 
 function explodeLabel(on){S.explode=on;$("bExplode").setAttribute("aria-pressed",on?"true":"false");$("bExplode").textContent=on?"Assemble":"Take apart"}
-function setExplode(on){if(remote("explode",on?1:0))return;S.kt=on?1:0;explodeLabel(on)}
+function setExplode(on){if(remote("explode",on?1:0))return;S.kt=on?1:0;explodeLabel(on);if(S.iso&&!S.vr&&!(CO.on&&CO.view==="pilot")){controls.autoRotate=false;homeView(on?"isoEx":"iso")}}
 function toggleBody(){setBody((S.body+1)%3)}
 $("bExplode").addEventListener("click",function(){setExplode(!S.explode)});
 $("bBody").addEventListener("click",toggleBody);
 $("bView").addEventListener("click",function(){controls.autoRotate=false;homeView()});
 $("bUnder").addEventListener("click",function(){controls.autoRotate=false;homeView("below")});
-$("bBox").addEventListener("click",function(){controls.autoRotate=false;setBody(2);homeView("box")});
+$("bBox").addEventListener("click",function(){setIso(!S.iso)});
 window.addEventListener("keydown",function(e){
   if(e.metaKey||e.ctrlKey||e.altKey)return; var t=e.target; if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"))return;
   var k=e.key.toLowerCase();
   if(k==="arrowup"){setGas(S.gas+0.05);e.preventDefault()} else if(k==="arrowdown"){setGas(S.gas-0.05);e.preventDefault()}
   else if(k==="p")setSel("P"); else if(k==="r")setSel("R"); else if(k==="n")setSel("N"); else if(k==="d")setSel("D"); else if(k==="m")setSel("M1");
   else if(k==="k")setBrake(!S.brake); else if(k==="h")push(); else if(k==="s")setEngine(!S.engine); else if(k==="f")setFlow(!S.flow);
-  else if(k==="e")setExplode(!S.explode); else if(k==="b")toggleBody(); else if(k==="v")homeView(); else if(k==="u")homeView("below"); else if(k==="g"){setBody(2);homeView("box")}
+  else if(k==="e")setExplode(!S.explode); else if(k==="b")toggleBody(); else if(k==="v")homeView(); else if(k==="u")homeView("below"); else if(k==="g")setIso(!S.iso);
   else if(k>="0"&&k<="9")setFault(FAULTS[+k]);
 });
 
@@ -986,12 +1001,12 @@ function drawCtrl(){
   head("Selector lever");
   row(["P","R","N","D","M1"].map(function(s){return[s==="M1"?"Manual 1":s,S.sel===s,function(){setSel(s)}]}));
   head("Gas "+Math.round(S.gas*100)+" % · brake · push");
-  row([["Gas −",false,function(){setGas(S.gas-0.1)}],["Gas +",false,function(){setGas(S.gas+0.1)}],["Gas 0",S.gas===0,function(){setGas(0)}],["Brake",S.brake,function(){setBrake(!S.brake)}],["Push car",S.push>0,push]]);
+  row([["Gas −",false,function(){setGas(S.gas-0.1)}],["Gas +",false,function(){setGas(S.gas+0.1)}],["Gas 0",S.gas===0,function(){setGas(0)}],["Brake",S.brake,function(){setBrake(!S.brake)}],["Push car",S.push>0,push],["Reset",false,doReset]]);
   head("Fault");
   row(FAULTS.slice(0,5).map(function(fl){return[FSHORT[fl],S.fault===fl,function(){setFault(fl)}]}));
   row(FAULTS.slice(5).map(function(fl){return[FSHORT[fl],S.fault===fl,function(){setFault(fl)}]}));
   head("Model");
-  row([["X-ray",S.body===0,function(){setBody(0)}],["Paint",S.body===1,function(){setBody(1)}],["No body",S.body===2,function(){setBody(2)}],[S.explode?"Assemble":"Take apart",S.explode,function(){setExplode(!S.explode)}],["Engine "+(S.engine?"on":"off"),S.engine,function(){setEngine(!S.engine)}],["Reset",false,doReset]]);
+  row([["X-ray",S.body===0,function(){setBody(0)}],["Paint",S.body===1,function(){setBody(1)}],["No body",S.body===2,function(){setBody(2)}],[S.explode?"Assemble":"Take apart",S.explode,function(){setExplode(!S.explode)}],["Block only",S.iso,function(){setIso(!S.iso)}],["Engine "+(S.engine?"on":"off"),S.engine,function(){setEngine(!S.engine)}]]);
   head("Parts");
   var ids=ORDER.filter(function(id){return S.awd||(id!=="angle"&&id!=="haldex")});
   for(var r=0;r<ids.length;r+=6)row(ids.slice(r,r+6).map(function(id){return[nm(SHORT[id]),S.part===id,function(){select(id)}]}));
@@ -1099,7 +1114,7 @@ function vrUpdate(dt){
     }
   });
   twoHand();
-  var sig=[window.Copilot?Copilot.code+Copilot.status:"",S.sel,S.gas,S.brake,S.push>0,S.fault,S.body,S.explode,S.engine,S.part,S.awd,S.gb,Object.keys(HOV).join()].join("|");
+  var sig=[window.Copilot?Copilot.code+Copilot.status:"",S.sel,S.gas,S.brake,S.push>0,S.fault,S.body,S.explode,S.engine,S.part,S.awd,S.gb,S.iso,Object.keys(HOV).join()].join("|");
   if(sig!==ctrlSig){ctrlSig=sig;drawCtrl()}
   lastDraw+=dt; if(lastDraw>0.08){lastDraw=0; drawInfo()}
 }
@@ -1158,7 +1173,7 @@ function coGetState(){
       var e=o.dot.visible?o.dot.position:_cs.set(0,0,-3).applyMatrix4(o.c.matrixWorld);
       rays.push([rd(_cd.x,3),rd(_cd.y,3),rd(_cd.z,3),rd(e.x,3),rd(e.y,3),rd(e.z,3)])})}
   else{_cp.copy(camera.position); _cq.copy(camera.quaternion)}
-  return {s:S.sel,g:S.gas,br:S.brake?1:0,f:S.fault,e:S.engine?1:0,gb:S.gb,aw:S.awd?1:0,b:S.body,k:rd(S.k,3),kt:rd(S.kt,3),sl:S.slow?1:0,pa:S.part,fl:S.flow?1:0,pu:rd(S.push,2),t:rd(S.t,2),
+  return {s:S.sel,g:S.gas,br:S.brake?1:0,f:S.fault,e:S.engine?1:0,gb:S.gb,aw:S.awd?1:0,b:S.body,k:rd(S.k,3),kt:rd(S.kt,3),sl:S.slow?1:0,pa:S.part,fl:S.flow?1:0,io:S.iso?1:0,pu:rd(S.push,2),t:rd(S.t,2),
     ph:[PH.we,PH.wt,PH.v,PH.x,PH.xe,PH.pl,PH.pc,PH.te,PH.heat,PH.hcap,PH.tcl,PH.fd,PH.tt,PH.te_,PH.carrier,PH.free].map(function(v){return rd(v,3)}),
     gr:PH.gear,bx:PH.box,en:PH.end?1:0,ht:PH.held?1:0,sa:PH.slipAt,tc:rd(PH.tcap,1),bf:bf,
     cam:[rd(_cp.x,3),rd(_cp.y,3),rd(_cp.z,3),rd(_cq.x,4),rd(_cq.y,4),rd(_cq.z,4),rd(_cq.w,4)],vr:pres?1:0,rays:rays};
@@ -1177,6 +1192,7 @@ function coSetState(s){
     if(s.b!==S.body)setBody(s.b);
     if(!!s.sl!==S.slow)setSlow(!!s.sl);
     if(!!s.fl!==S.flow)setFlow(!!s.fl);
+    if(!!s.io!==S.iso)setIso(!!s.io);
     if(s.pa!==S.part&&PARTS[s.pa])select(s.pa);
     S.kt=s.k; if((s.kt>0.5)!==S.explode)explodeLabel(s.kt>0.5);
     S.push=s.pu;
@@ -1248,6 +1264,7 @@ function coAction(d){
   else if(d.a==="reset")doReset();
   else if(d.a==="slow")setSlow(!!v);
   else if(d.a==="flow")setFlow(!!v);
+  else if(d.a==="iso")setIso(!!v);
   else if(d.a==="part"&&PARTS.hasOwnProperty(v))select(v);
 }
 function coRole(r){
@@ -1262,6 +1279,6 @@ if(window.Copilot){
   (function(){var cp=$("copilot-panel"), slot=$("copilotSlot"); if(cp&&slot){cp.classList.remove("cp-small"); slot.appendChild(cp)}})();
 }
 /* test hook */
-window.__xc={drawCtrl:drawCtrl,drawInfo:drawInfo,CP:CP,IP:IP,S:S,PH:PH,F:function(){return F},setSel:setSel,setFault:setFault,setGas:setGas,setBrake:setBrake,push:push,doReset:doReset,setGb:setGb,setAwd:setAwd,step:step,setExplode:setExplode,setBody:setBody,homeView:homeView};
+window.__xc={setIso:setIso,drawCtrl:drawCtrl,drawInfo:drawInfo,CP:CP,IP:IP,S:S,PH:PH,F:function(){return F},setSel:setSel,setFault:setFault,setGas:setGas,setBrake:setBrake,push:push,doReset:doReset,setGb:setGb,setAwd:setAwd,step:step,setExplode:setExplode,setBody:setBody,homeView:homeView};
 renderer.setAnimationLoop(frame);
 })();

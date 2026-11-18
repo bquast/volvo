@@ -60,7 +60,7 @@ kbd{font-family:var(--mono);font-size:13px;border:1px solid var(--rule);border-r
 .dockL{min-width:0}
 .airin{display:block;width:260px;height:176px;margin:8px 10px 8px 0}
 @media (max-width:640px){.dock{grid-template-columns:1fr}.airin{width:calc(100% - 20px);height:auto;aspect-ratio:260/176;max-width:420px;margin:0 10px 10px}}
-@media (min-width:900px) and (min-height:480px){.airin{width:220px;height:149px}.side .view{padding:0;border:0;flex-wrap:nowrap}.side .view button{padding:7px 9px}.chart canvas{height:70px}}
+@media (min-width:900px) and (min-height:480px){.airin{width:220px;height:149px}.side .view{padding:0;border:0;gap:5px}.side .view button{padding:6px 8px;white-space:nowrap}.chart canvas{height:70px}}
 .status{font-family:var(--mono);font-size:13px;line-height:1.45;padding:10px 14px;border-top:1px solid var(--rule);min-height:58px;color:var(--ink)}
 .status.bad{color:var(--fault)}
 .read{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--rule)}
@@ -213,7 +213,7 @@ html body #copilot-panel input{background:#0b1322;color:var(--ink);border:1px so
       <button type="button" id="bBody">X-ray</button>
       <button type="button" id="bUnder">Below</button>
       <button type="button" id="bView">Home</button>
-      <button type="button" id="bBox">Gearbox</button>
+      <button type="button" id="bBox" aria-pressed="false" title="Show only the gearbox block">Block only</button>
       <button type="button" id="bVR" class="vrb" hidden>Enter VR</button>
       <button type="button" id="bPilot" hidden aria-pressed="false">Pilot view</button>
       <button type="button" id="bFlow" aria-pressed="true">Flow</button>
@@ -358,7 +358,7 @@ html body #copilot-panel input{background:#0b1322;color:var(--ink);border:1px so
     <li>Open the page in the Quest browser and push <strong>Enter VR</strong>. The car is at its real size.</li>
     <li>Point with a controller or your hand. Push the trigger or pinch to use a button or to select a part.</li>
     <li>Left thumbstick: move. Right thumbstick left or right: turn in steps. Right thumbstick up or down: move up or down.</li>
-    <li>Use <strong>At the gearbox</strong> to stand next to the open engine bay, or <strong>On a lift</strong> to look up at the drive line.</li>
+    <li>Use <strong>At the gearbox</strong> to stand next to the open engine bay, or <strong>On a lift</strong> to look up at the drive line. <strong>Box only</strong> hides all parts that are not the gearbox block.</li>
     <li>Point at a panel and hold the grip button to move the panel. Release the grip to put it down.</li>
     <li>Hold the two grip buttons, then move your hands apart to take the gearbox apart. Move them together to assemble it.</li>
   </ul>
@@ -374,7 +374,7 @@ html body #copilot-panel input{background:#0b1322;color:var(--ink);border:1px so
     <li><kbd>0</kbd> to <kbd>9</kbd> select a fault</li>
     <li><kbd>E</kbd> take apart or assemble</li>
     <li><kbd>B</kbd> body: x-ray, paint, or off</li>
-    <li><kbd>G</kbd> look at the gearbox</li>
+    <li><kbd>G</kbd> block only: hide the body, engine, wheels and drive line</li>
     <li><kbd>U</kbd> look from below, <kbd>V</kbd> home view</li>
     <li><kbd>S</kbd> engine on or off, <kbd>F</kbd> flow</li>
     <li><kbd>C</kbd> copilot: pilot view or free view</li>
