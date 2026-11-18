@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XC90 2004 Automatic Transmission</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Same system as the X5 tool: a workshop at night. Amber is torque and oil pressure, cyan is speed and signals, red is a fault or slip. */
+  --bg:#0b1322;
+  --panel:#121d33;
+  --rule:#27364f;
+  --ink:#e7edf6;
+  --muted:#94a3bd;
+  --air:#f0b84a;
+  --signal:#69cfe6;
+  --fault:#ff6a4d;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55}
+main{max-width:860px;margin:0 auto;padding:20px 16px 56px;display:flex;flex-direction:column;gap:28px}
+header{display:flex;flex-direction:column;gap:4px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--signal)}
+h1{font-family:var(--display);font-weight:600;font-size:clamp(38px,9vw,60px);line-height:.95;margin:0;letter-spacing:.01em;text-transform:uppercase;text-wrap:balance}
+h2{font-family:var(--display);font-weight:600;font-size:28px;line-height:1.05;margin:0 0 8px;text-transform:uppercase;letter-spacing:.02em;text-wrap:balance}
+h3{font-family:var(--display);font-weight:600;font-size:22px;margin:0;text-transform:uppercase;letter-spacing:.02em}
+p{margin:0 0 10px;max-width:65ch}
+p:last-child{margin-bottom:0}
+.lede{color:var(--muted);margin-top:6px}
+strong{font-weight:600;color:#fff}
+a{color:var(--signal)}
+kbd{font-family:var(--mono);font-size:13px;border:1px solid var(--rule);border-radius:4px;padding:1px 6px;color:var(--ink)}
+
+/* 3D stage */
+.rig{background:var(--panel);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+.stage{position:relative;aspect-ratio:1/1;background:var(--bg)}
+@media (min-width:640px){.stage{aspect-ratio:16/10}}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+.stage canvas:active{cursor:grabbing}
+.loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:13px;color:var(--muted);background:var(--bg);text-align:center;padding:16px}
+.view{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border-top:1px solid var(--rule)}
+.view button{border-radius:6px;min-height:34px;padding:7px 11px;font-size:13px}
+.view button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.view .vrb{background:var(--air);color:#1a1205;border-color:var(--air);font-weight:600}
+.chart{border-top:1px solid var(--rule);padding:8px 10px 6px}
+.chart canvas{display:block;width:100%;height:130px}
+.chart .cap{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.chart .cap i{font-style:normal;font-family:var(--mono);text-transform:none;letter-spacing:0}
+.chart .cap .l{color:var(--air)} .chart .cap .t{color:var(--ink)} .chart .cap .rt{color:var(--signal)}
+/* below the 3D view: status and graph on the left, the power flow diagram on the right */
+.dock{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start}
+.dockL{min-width:0}
+.airin{display:block;width:260px;height:176px;margin:8px 10px 8px 0}
+@media (max-width:640px){.dock{grid-template-columns:1fr}.airin{width:calc(100% - 20px);height:auto;aspect-ratio:260/176;max-width:420px;margin:0 10px 10px}}
+@media (min-width:900px) and (min-height:480px){.airin{width:220px;height:149px}.side .view{padding:0;border:0;flex-wrap:nowrap}.side .view button{padding:7px 9px}.chart canvas{height:70px}}
+.status{font-family:var(--mono);font-size:13px;line-height:1.45;padding:10px 14px;border-top:1px solid var(--rule);min-height:58px;color:var(--ink)}
+.status.bad{color:var(--fault)}
+.read{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--rule)}
+.read div{padding:8px 10px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);min-width:0}
+.read div:nth-child(3n){border-right:0}
+.read div:nth-last-child(-n+3){border-bottom:0}
+.read span{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.read b{font-family:var(--mono);font-weight:500;font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.read b.air{color:var(--air)} .read b.bad{color:var(--fault)} .read b.sig{color:var(--signal)}
+
+/* controls */
+.controls{display:flex;flex-direction:column;gap:16px}
+.group{display:flex;flex-direction:column;gap:8px}
+.label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;display:flex;justify-content:space-between;gap:12px}
+.label output{font-family:var(--mono);color:var(--ink);text-transform:none;letter-spacing:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+button{font:500 14px/1 var(--body);color:var(--ink);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:10px 14px;cursor:pointer;min-height:40px}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.faults button[aria-pressed="true"]{background:var(--fault);border-color:var(--fault);color:#1a0b06}
+.faults button[data-fault="none"][aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.sel button{font-family:var(--mono);font-weight:500;min-width:46px;border-radius:6px}
+.sel button[aria-pressed="true"]{background:var(--air);border-color:var(--air);color:#1a1205}
+button.act{border-radius:6px;border-color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--air);height:32px;margin:0}
+.hint{font-size:14px;color:var(--muted);min-height:44px;margin:0}
+.row2{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
+
+.card{background:var(--panel);border:1px solid var(--rule);border-left:3px solid var(--air);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.card dl{margin:0;display:flex;flex-direction:column;gap:10px}
+.card dt{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.card dd{margin:2px 0 0;max-width:65ch}
+
+/* diagnose */
+.q{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-bottom:1px solid var(--rule)}
+.q:first-child{padding-top:0}
+.q .qt{font-size:14px;color:#fff;font-weight:500}
+.q .chips{gap:6px}
+.q button{border-radius:6px;font-size:13px;min-height:32px;padding:7px 10px}
+.q button[aria-pressed="true"]{background:var(--signal);border-color:var(--signal);color:#06202a}
+.q button.nt[aria-pressed="true"]{background:transparent;color:var(--muted);border-color:var(--muted)}
+.rank{display:flex;flex-direction:column;gap:8px}
+.rk{display:grid;grid-template-columns:1fr 52px;gap:4px 10px;align-items:center;background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:9px 12px}
+.rk .n{font-weight:600;color:#fff;font-size:14px}
+.rk .pc{font-family:var(--mono);text-align:right;font-size:14px;color:var(--air)}
+.rk .bar{grid-column:1/3;height:5px;background:var(--rule);border-radius:3px;overflow:hidden}
+.rk .bar i{display:block;height:100%;background:var(--air)}
+.rk .why{grid-column:1/3;font-size:13px;color:var(--muted);line-height:1.4}
+.rk .go{grid-column:1/3;justify-self:start;border-radius:6px;font-size:12px;min-height:28px;padding:5px 10px}
+
+.sym{display:flex;flex-direction:column;border-top:1px solid var(--rule)}
+.sym div{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--rule)}
+.sym div>span:first-child{color:#fff;font-weight:500}
+.sym div>span:last-child{color:var(--muted)}
+@media (max-width:440px){.sym div{grid-template-columns:1fr;gap:4px}}
+ol,ul{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;max-width:65ch}
+.keys{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.note{font-size:14px;color:var(--muted);border-top:1px solid var(--rule);padding-top:16px}
+.warnbox{border:1px solid var(--fault);border-radius:6px;padding:10px 12px;font-size:14px;color:var(--ink)}
+
+/* phone and narrow windows: one column that scrolls */
+.left,.side,.panel{display:flex;flex-direction:column;gap:28px;min-width:0}
+.tabs{display:none}
+
+/* laptop: one screen, no page scroll. Model on the left, tabs on the right. */
+@media (min-width:900px) and (min-height:480px){
+  html,body{height:100%;overflow:hidden}
+  main{max-width:none;height:100%;padding:12px 16px;display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:16px}
+  .left{min-height:0;gap:8px}
+  header{flex-direction:row;align-items:baseline;gap:14px}
+  header h1{font-size:32px;order:-1;white-space:nowrap}
+  .lede{display:none}
+  .rig{flex:1;min-height:0;display:flex;flex-direction:column}
+  .stage{flex:1;min-height:0;aspect-ratio:auto}
+  .status{height:52px;min-height:0;padding:7px 14px;overflow:hidden}
+  .chart{padding:6px 10px 4px}
+  .read{grid-template-columns:repeat(6,1fr)}
+  .read div:nth-child(n){border-bottom:0;border-right:1px solid var(--rule);padding:6px 10px}
+  .read div:nth-child(6){border-right:0}
+  .side{min-height:0;gap:10px}
+  .tabs{display:flex;gap:6px}
+  .tabs button{flex:1;border-radius:6px;padding:7px 6px}
+  .side .panel{display:none;flex:1;min-height:0;overflow-y:auto;gap:20px;padding-right:2px}
+  .side[data-tab="test"] .panel[data-p="test"],.side[data-tab="diag"] .panel[data-p="diag"],.side[data-tab="parts"] .panel[data-p="parts"],.side[data-tab="guide"] .panel[data-p="guide"],.side[data-tab="copilot"] .panel[data-p="copilot"]{display:flex}
+  .controls{gap:11px}
+  .side button{min-height:32px;padding:7px 11px;font-size:13px}
+  .side .chips{gap:6px}
+  .hint{font-size:13px;line-height:1.4;min-height:37px}
+  input[type=range]{height:24px}
+  .side h2{font-size:22px}
+  .panel[data-p="parts"] h2{display:none}
+  .card{padding:12px 14px;gap:8px}
+  .card dd{font-size:14px;line-height:1.45}
+  .panel[data-p="guide"],.panel[data-p="copilot"]{font-size:14px}
+}
+@media (min-width:900px) and (max-height:860px){
+  .controls{gap:8px}
+  .hint{min-height:0}
+  .side button{min-height:30px;padding:6px 10px}
+  .side .q button{min-height:28px;padding:5px 9px}
+}
+
+html body #copilot-panel{position:static;width:auto;font:13px/1.4 var(--mono);background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:12px;text-shadow:none;margin-bottom:12px}
+html body #copilot-panel .cp-hide{display:none}
+html body #copilot-panel .cp-body{display:block;padding-top:0}
+html body #copilot-panel button{min-height:32px}
+html body #copilot-panel button{border-color:var(--rule);color:var(--ink)}
+html body #copilot-panel input{background:#0b1322;color:var(--ink);border:1px solid var(--rule);border-radius:4px}
+</style>
+</head>
+<body>
+<main>
+<div class="left">
+<header>
+  <div class="eyebrow" id="eyebrow">Volvo XC90 · 2004 · AWD · automatic</div>
+  <h1>Automatic transmission</h1>
+  <p class="lede">Turn the car with your finger. Put the lever in a position, give gas, and set a fault. See where the torque goes and where it slips. Tap a part to read about it.</p>
+</header>
+
+<section class="rig" aria-label="Live 3D model of the drive line">
+  <div class="stage" id="stage">
+    <canvas id="gl" aria-label="3D model of the car with the engine, the gearbox and the drive line"></canvas>
+    <div class="loading" id="loading">Filling the gearbox with oil…</div>
+  </div>
+  <div class="dock">
+  <div class="dockL">
+  <div class="status" id="status" aria-live="polite"></div>
+  <div class="chart">
+    <div class="cap"><span>Speed, last 6 s</span><span><i class="l" id="cE">Engine 750</i> · <i class="t" id="cT">Turbine 0</i> · <i class="rt" id="cO">Wheels ×ratio 0</i> rpm</span></div>
+    <canvas id="chart" aria-label="Graph of the engine speed, the turbine speed and the speed that comes back from the wheels"></canvas>
+  </div>
+  </div>
+  <canvas class="airin" id="flowInset" aria-label="Diagram of the power flow from the engine to the wheels"></canvas>
+  </div>
+  <div class="read">
+    <div><span>Gearbox</span><b id="rG"></b></div>
+    <div><span>Engine</span><b id="rE"></b></div>
+    <div><span>Line pressure</span><b id="rP" class="air"></b></div>
+    <div><span>Clutch pressure</span><b id="rC" class="air"></b></div>
+    <div><span>Speed</span><b id="rS" class="sig"></b></div>
+    <div><span>Car moved</span><b id="rX"></b></div>
+  </div>
+</section>
+
+</div>
+<div class="side" id="side" data-tab="test">
+    <div class="view">
+      <button type="button" id="bExplode" aria-pressed="false">Take apart</button>
+      <button type="button" id="bBody">X-ray</button>
+      <button type="button" id="bUnder">Below</button>
+      <button type="button" id="bView">Home</button>
+      <button type="button" id="bBox">Gearbox</button>
+      <button type="button" id="bVR" class="vrb" hidden>Enter VR</button>
+      <button type="button" id="bPilot" hidden aria-pressed="false">Pilot view</button>
+      <button type="button" id="bFlow" aria-pressed="true">Flow</button>
+    </div>
+<div class="tabs" id="tabs"><button type="button" data-tab="test" aria-pressed="true">Test</button><button type="button" data-tab="diag" aria-pressed="false">Diagnose</button><button type="button" data-tab="parts" aria-pressed="false">Parts</button><button type="button" data-tab="copilot" aria-pressed="false">Copilot</button><button type="button" data-tab="guide" aria-pressed="false">Guide</button></div>
+<div class="panel" data-p="test">
+<section class="controls" aria-label="Controls">
+  <div class="group">
+    <div class="label">Your car</div>
+    <div class="chips" id="gb">
+      <button type="button" data-gb="aw" aria-pressed="true">2.5T or D5 · Aisin 5-speed</button>
+      <button type="button" data-gb="gm" aria-pressed="false">T6 · GM 4-speed</button>
+      <button type="button" id="bAwd" aria-pressed="true">AWD</button>
+    </div>
+  </div>
+  <div class="group">
+    <div class="label">Selector lever</div>
+    <div class="chips sel" id="sel">
+      <button type="button" data-sel="P" aria-pressed="true">P</button>
+      <button type="button" data-sel="R" aria-pressed="false">R</button>
+      <button type="button" data-sel="N" aria-pressed="false">N</button>
+      <button type="button" data-sel="D" aria-pressed="false">D</button>
+      <button type="button" data-sel="M1" aria-pressed="false">Manual 1</button>
+    </div>
+    <p class="hint" id="shint"></p>
+  </div>
+  <div class="group">
+    <div class="row2">
+      <div><label class="label" for="gas">Gas pedal <output id="gasOut" for="gas">0 %</output></label>
+      <input type="range" id="gas" min="0" max="100" step="5" value="0"></div>
+      <div class="chips"><button type="button" class="act" id="bBrake" aria-pressed="false">Brake pedal</button><button type="button" class="act" id="bPush">Push the car</button></div>
+    </div>
+  </div>
+  <div class="group">
+    <div class="label">Fault</div>
+    <div class="chips faults" id="faults"></div>
+    <p class="hint" id="hint"></p>
+  </div>
+  <div class="chips">
+    <button type="button" class="act" id="engine" aria-pressed="true">Engine: on</button>
+    <button type="button" class="act" id="reset">Reset</button>
+    <button type="button" class="act" id="bSlow" aria-pressed="false">Slow motion</button>
+  </div>
+</section>
+</div>
+
+<div class="panel" data-p="diag">
+<section aria-label="Diagnose your car">
+  <h2>Your car</h2>
+  <p style="font-size:14px;color:var(--muted)">Do the tests on level ground, with the engine warm and a person in the driver seat. Select what your car does. The list below shows the faults that agree best. Your first answer is already set from your description.</p>
+  <div id="qs"></div>
+</section>
+<section aria-label="Probable causes">
+  <h2>Probable causes</h2>
+  <div class="rank" id="rank"></div>
+  <p class="note">This is a guide, not a diagnosis. The weights are estimates. Read the fault codes before you buy parts.</p>
+</section>
+</div>
+
+<div class="panel" data-p="parts">
+<section aria-label="Parts">
+  <h2>The parts</h2>
+  <div class="group">
+    <div class="chips" id="parts"></div>
+    <div class="card" id="card" aria-live="polite"></div>
+  </div>
+</section>
+</div>
+
+<div class="panel" data-p="copilot">
+<section>
+  <h2>Copilot</h2>
+  <div id="copilotSlot"></div>
+  <p>A second device sees the car of the pilot and changes the settings. Example: you wear the Quest, and a friend uses the MacBook.</p>
+  <ol>
+    <li>On the Quest, read the code of 6 digits. It is at the top of the VR control panel, and in the box at the top of this tab.</li>
+    <li>On the Mac, open the same page. Open this tab, type the code in the box and push <strong>BE COPILOT</strong>.</li>
+    <li>The Mac shows the car of the pilot. <strong>Pilot view</strong> shows what the pilot sees. <strong>Free view</strong> lets you turn the car. In free view you also see the head of the pilot and where the pilot points.</li>
+    <li>All controls on the Mac (lever, gas, brake, faults, parts, body) change the car of the pilot.</li>
+    <li><strong>STOP COPILOT</strong> makes the Mac a normal device again.</li>
+  </ol>
+  <p>A public server (PeerJS) helps the two devices to find each other. After that the data goes directly between the devices. On the same WiFi it stays in your network.</p>
+</section>
+</div>
+
+<div class="panel" data-p="guide">
+<section>
+  <h2>How the torque gets to the wheels</h2>
+  <p>The engine turns the <strong>torque converter</strong>. The converter is full of oil (ATF). Its pump half pushes oil against the turbine half, and the turbine turns the gearbox input. At idle the turbine can stand still while the engine turns. That is why the car does not stall at a stop.</p>
+  <p>In the gearbox, <strong>clutches</strong>, <strong>brakes</strong> and <strong>one-way clutches</strong> hold parts of the <strong>planetary gear sets</strong>. Each gear uses a different set of them. Oil pressure from the <strong>oil pump</strong> applies the clutches. The <strong>valve body</strong> and its solenoids send the pressure to the correct clutch, on commands from the <strong>TCM</strong>.</p>
+  <p>The gearbox output turns the <strong>differential</strong>. The differential drives the two front drive shafts. On an AWD car the <strong>angle gear</strong> also turns the propeller shaft. The <strong>Haldex coupling</strong> at the rear axle closes when the front wheels turn faster than the rear wheels, and then the rear wheels push too.</p>
+</section>
+
+<section>
+  <h2>Read the graph</h2>
+  <ul>
+    <li><strong>Engine</strong> (amber) and <strong>turbine</strong> (white): a gap between them is slip in the torque converter. At a stop in D this gap is normal.</li>
+    <li><strong>Wheels × ratio</strong> (cyan): the wheel speed, multiplied by the gear ratio. When a clutch holds, this line is on the turbine line. When a clutch slips, the turbine line goes up and the cyan line stays low.</li>
+    <li>If the engine goes to high rpm, but the turbine and the wheels stay at zero, the converter or the pump does not turn the gearbox.</li>
+    <li>If the engine stops at about 2300 rpm with full gas and the car stands still, something holds the car. The gearbox clutches hold. This is the stall speed.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Your symptom: it pushes about 10 cm, then stops</h2>
+  <p>Two very different faults give this result. The tests in the <strong>Diagnose</strong> tab tell them apart.</p>
+  <ol>
+    <li><strong>The forward clutch slips.</strong> The clutch holds for a moment when it fills with oil. Then the pressure goes down, because oil leaks out at a worn seal, or the friction plates are worn. The car rolls a short distance and stops. With gas, the engine revs up easily, but the car does not move. Reverse often still works, because reverse uses other clutches. Select <strong>Forward clutch slips</strong> and put the lever in D.</li>
+    <li><strong>Something holds the car.</strong> A seized brake, a parking brake that does not release, or a seized part of the drive line. The gearbox drives, but the car only pushes against the tyres and the mounts. That gives about 10 cm. When you select N, the car moves back. With gas, the engine is loaded and stops at about the stall speed. Select <strong>Car is held</strong> and put the lever in D.</li>
+  </ol>
+  <p>The simple test: put the lever in N and let two persons push the car on level ground. A free car rolls easily. A held car does not roll.</p>
+</section>
+
+<section>
+  <h2>Five tests you can do</h2>
+  <ol>
+    <li><strong>ATF level and colour.</strong> On the 5-speed the procedure uses a dipstick, the engine at idle and the ATF at the specified temperature. Use the procedure for your VIN. Red and clear is good. Dark with a burnt smell means worn clutches. Pink and milky means coolant in the ATF.</li>
+    <li><strong>Reverse.</strong> Put the lever in R at idle. If R is good and D is bad, the fault is in a forward element of the gearbox.</li>
+    <li><strong>Manual mode, gear 1.</strong> Move the lever to the side and push it down to 1. If gear 1 works in manual mode, but D does not move the car, the one-way clutch of 1st gear can be the cause. The model shows this for the 5-speed.</li>
+    <li><strong>Light gas in D.</strong> Hold the brake pedal. Give gas slowly to about 1500 rpm for 2 seconds, not more. Release. Do this only one time. If the engine revs up very easily and the car does not push, the clutch slips.</li>
+    <li><strong>Push test in N.</strong> See above.</li>
+  </ol>
+  <div class="warnbox">Do not do a full stall test on a gearbox that slips. Full gas against a slipping clutch burns the plates in seconds. Chock the wheels. Keep persons away from the front and the rear of the car while it is in gear.</div>
+</section>
+
+<section>
+  <h2>From symptom to part</h2>
+  <div class="sym">
+    <div><span>Engages, rolls a little, stops. Engine revs up easily. R works.</span><span>Forward clutch (5-speed: C1) or its piston seal. On the 4-speed: the forward band.</span></div>
+    <div><span>D does not move, manual 1 moves.</span><span>Low one-way clutch (5-speed: F2). On the 4-speed: the 1-2 roller clutch.</span></div>
+    <div><span>No D and no R. Engine revs up easily.</span><span>Very low ATF, oil pump, converter hub, or a broken shaft.</span></div>
+    <div><span>Pushes, stops, rocks back in N. Engine loaded.</span><span>Brakes, parking brake, or a seized part of the drive line.</span></div>
+    <div><span>Grinding at the front. Left wheel stands still.</span><span>Drive shaft spline or differential. On AWD the rear wheels can still push a little.</span></div>
+    <div><span>Pink, milky ATF.</span><span>The ATF cooler in the radiator leaks. Replace the radiator and flush the gearbox. The clutches are often already damaged.</span></div>
+    <div><span>Lever in D, but the display shows P or N.</span><span>Selector cable or the lever on the gearbox.</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>In VR (Meta Quest)</h2>
+  <ul>
+    <li>Open the page in the Quest browser and push <strong>Enter VR</strong>. The car is at its real size.</li>
+    <li>Point with a controller or your hand. Push the trigger or pinch to use a button or to select a part.</li>
+    <li>Left thumbstick: move. Right thumbstick left or right: turn in steps. Right thumbstick up or down: move up or down.</li>
+    <li>Use <strong>At the gearbox</strong> to stand next to the open engine bay, or <strong>On a lift</strong> to look up at the drive line.</li>
+    <li>Point at a panel and hold the grip button to move the panel. Release the grip to put it down.</li>
+    <li>Hold the two grip buttons, then move your hands apart to take the gearbox apart. Move them together to assemble it.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Keys</h2>
+  <ul class="keys">
+    <li>Drag to turn the car. Pinch or scroll to zoom.</li>
+    <li><kbd>P</kbd> <kbd>R</kbd> <kbd>N</kbd> <kbd>D</kbd> <kbd>M</kbd> selector lever</li>
+    <li><kbd>↑</kbd> <kbd>↓</kbd> gas, <kbd>K</kbd> brake pedal</li>
+    <li><kbd>H</kbd> push the car</li>
+    <li><kbd>0</kbd> to <kbd>9</kbd> select a fault</li>
+    <li><kbd>E</kbd> take apart or assemble</li>
+    <li><kbd>B</kbd> body: x-ray, paint, or off</li>
+    <li><kbd>G</kbd> look at the gearbox</li>
+    <li><kbd>U</kbd> look from below, <kbd>V</kbd> home view</li>
+    <li><kbd>S</kbd> engine on or off, <kbd>F</kbd> flow</li>
+    <li><kbd>C</kbd> copilot: pilot view or free view</li>
+  </ul>
+</section>
+
+<p class="note">This is a simplified model. The pressures, rpm values, ratios and distances are examples and are not Volvo, Aisin or GM data. The body is a simple silver SUV shape with the approximate dimensions of the first XC90. It is not a copy of the Volvo design and it has no Volvo marks. The shapes and positions of the parts are schematic: the internal layout of the gearbox is shown as one row of parts. Use the repair data for your VIN before you buy parts. Sources: <a href="https://sonnax.com">Sonnax</a> AW55-50SN element names; Saab WIS application table for the AW55-50; ATSG 4T60-E application chart; Volvo owner forums for the angle gear and drive shaft faults.</p>
+</div>
+</div>
+</main>
+
+<script src="three.min.js"></script>
+<script src="OrbitControls.js"></script>
+<script src="RoomEnvironment.js"></script>
+<script src="copilot.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
